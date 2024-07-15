@@ -203,15 +203,6 @@ pub opaque type App(flags, model, msg) {
     init: fn(flags) -> #(model, Effect(msg)),
     update: fn(model, msg) -> #(model, Effect(msg)),
     view: fn(model) -> Element(msg),
-    // The `dict.mjs` module in the standard library is huge (20+kb!). For folks
-    // that don't ever build components and don't use a dictionary in any of their
-    // code we'd rather not thrust that increase in bundle size on them just to
-    // call `dict.new()`.
-    //
-    // Using `Option` here at least lets us say `None` for the empty case in the
-    // `application` constructor.
-    //
-    on_attribute_change: Option(Dict(String, Decoder(msg))),
   )
 }
 
@@ -222,6 +213,12 @@ pub opaque type App(flags, model, msg) {
 /// sending actions to the wrong kind of runtime.
 ///
 pub type ClientSpa
+
+/// The `ClientComponent` represents a component in the browser term, i.e. a
+/// custom element.
+///
+/// This type is used to allow various initialization when creating a new component.
+pub type ClientComponent
 
 /// A `ServerComponent` is a type of Lustre application that does not directly
 /// render anything to the DOM. Instead, it can run anywhere Gleam runs and
@@ -330,7 +327,7 @@ pub fn application(
   update: fn(model, msg) -> #(model, Effect(msg)),
   view: fn(model) -> Element(msg),
 ) -> App(flags, model, msg) {
-  App(init, update, view, None)
+  App(init, update, view)
 }
 
 /// A `component` is a type of Lustre application designed to be embedded within
@@ -355,9 +352,8 @@ pub fn component(
   init: fn(flags) -> #(model, Effect(msg)),
   update: fn(model, msg) -> #(model, Effect(msg)),
   view: fn(model) -> Element(msg),
-  on_attribute_change: Dict(String, Decoder(msg)),
 ) -> App(flags, model, msg) {
-  App(init, update, view, Some(on_attribute_change))
+  App(init, update, view)
 }
 
 // EFFECTS ---------------------------------------------------------------------
@@ -412,9 +408,18 @@ fn do_start(
 @external(javascript, "./server-runtime.ffi.mjs", "start")
 pub fn start_server_component(
   app: App(flags, model, msg),
+  // The `dict.mjs` module in the standard library is huge (20+kb!). For folks
+  // that don't ever build components and don't use a dictionary in any of their
+  // code we'd rather not thrust that increase in bundle size on them just to
+  // call `dict.new()`.
+  //
+  // Using `Option` here at least lets us say `None` for the empty case in the
+  // `application` constructor.
+  //
+  on_attribute_change: Option(Dict(String, Decoder(msg))),
   with flags: flags,
 ) -> Result(fn(Action(msg, ServerComponent)) -> Nil, Error) {
-  use runtime <- result.map(start_actor(app, flags))
+  use runtime <- result.map(start_actor(app, on_attribute_change, flags))
   actor.send(runtime, _)
 }
 
@@ -430,22 +435,40 @@ pub fn start_server_component(
 ///
 pub fn start_actor(
   app: App(flags, model, msg),
+  // The `dict.mjs` module in the standard library is huge (20+kb!). For folks
+  // that don't ever build components and don't use a dictionary in any of their
+  // code we'd rather not thrust that increase in bundle size on them just to
+  // call `dict.new()`.
+  //
+  // Using `Option` here at least lets us say `None` for the empty case in the
+  // `application` constructor.
+  //
+  on_attribute_change: Option(Dict(String, Decoder(msg))),
   with flags: flags,
 ) -> Result(Subject(Action(msg, ServerComponent)), Error) {
-  do_start_actor(app, flags)
+  do_start_actor(app, on_attribute_change, flags)
 }
 
 @target(javascript)
-fn do_start_actor(_, _) {
+fn do_start_actor(_, _, _) {
   Error(NotErlang)
 }
 
 @target(erlang)
 fn do_start_actor(
   app: App(flags, model, msg),
+  // The `dict.mjs` module in the standard library is huge (20+kb!). For folks
+  // that don't ever build components and don't use a dictionary in any of their
+  // code we'd rather not thrust that increase in bundle size on them just to
+  // call `dict.new()`.
+  //
+  // Using `Option` here at least lets us say `None` for the empty case in the
+  // `application` constructor.
+  //
+  on_attribute_change: Option(Dict(String, Decoder(msg))),
   flags: flags,
 ) -> Result(Subject(Action(msg, ServerComponent)), Error) {
-  let on_attribute_change = option.unwrap(app.on_attribute_change, dict.new())
+  let on_attribute_change = option.unwrap(on_attribute_change, dict.new())
 
   app.init(flags)
   |> runtime.start(app.update, app.view, on_attribute_change)
@@ -474,7 +497,11 @@ fn do_start_actor(
 /// or [`start_actor`](#start_actor) instead.
 ///
 @external(javascript, "./client-component.ffi.mjs", "register")
-pub fn register(_app: App(Nil, model, msg), _name: String) -> Result(Nil, Error) {
+pub fn register(
+  _name: String,
+  _on_attribute_change: Dict(String, dynamic.Decoder(msg)),
+  _app: fn(ClientComponent) -> App(Nil, model, msg),
+) -> Result(ClientComponent, Error) {
   Error(NotABrowser)
 }
 

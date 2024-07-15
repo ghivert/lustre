@@ -6,6 +6,7 @@ import apps/static
 import birdie
 import gleam/erlang/process
 import gleam/json
+import gleam/option
 import gleeunit
 import lustre
 import lustre/element
@@ -31,7 +32,7 @@ pub fn static_test() {
 pub fn counter_init_test() {
   let title = "Can render an application's initial state."
   let app = lustre.simple(counter.init, counter.update, counter.view)
-  let assert Ok(runtime) = lustre.start_actor(app, 0)
+  let assert Ok(runtime) = lustre.start_actor(app, option.None, 0)
   let el =
     process.call(
       runtime,
@@ -51,7 +52,7 @@ pub fn counter_init_test() {
 pub fn counter_update_test() {
   let title = "Can render an application's state after some updates."
   let app = lustre.simple(counter.init, counter.update, counter.view)
-  let assert Ok(runtime) = lustre.start_actor(app, 0)
+  let assert Ok(runtime) = lustre.start_actor(app, option.None, 0)
 
   process.send(runtime, Dispatch(counter.Increment))
   process.send(runtime, Dispatch(counter.Increment))
@@ -76,7 +77,7 @@ pub fn counter_update_test() {
 pub fn counter_diff_test() {
   let title = "Can compute a diff from one render to the next"
   let app = lustre.simple(counter.init, counter.update, counter.view)
-  let assert Ok(runtime) = lustre.start_actor(app, 0)
+  let assert Ok(runtime) = lustre.start_actor(app, option.None, 0)
 
   let prev =
     process.call(
@@ -114,7 +115,7 @@ pub fn counter_diff_test() {
 pub fn fragment_init_test() {
   let title = "Can render an application's initial state when using fragments"
   let app = lustre.simple(fragment.init, fragment.update, fragment.view)
-  let assert Ok(runtime) = lustre.start_actor(app, 0)
+  let assert Ok(runtime) = lustre.start_actor(app, option.None, 0)
   let el =
     process.call(
       runtime,
@@ -134,7 +135,7 @@ pub fn fragment_init_test() {
 pub fn fragment_counter_diff_test() {
   let title = "Can compute a diff from one render to the next with fragments"
   let app = lustre.simple(fragment.init, fragment.update, fragment.view)
-  let assert Ok(runtime) = lustre.start_actor(app, 0)
+  let assert Ok(runtime) = lustre.start_actor(app, option.None, 0)
 
   let prev =
     process.call(

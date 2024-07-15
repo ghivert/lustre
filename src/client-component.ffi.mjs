@@ -7,14 +7,14 @@ import {
 } from "./lustre.mjs";
 import { LustreClientApplication, is_browser } from "./client-runtime.ffi.mjs";
 
-export function register({ init, update, view, on_attribute_change }, name) {
+export function register(name, on_attribute_change, setup) {
   if (!is_browser()) return new Error(new NotABrowser());
   if (!name.includes("-")) return new Error(new BadComponentName(name));
   if (window.customElements.get(name)) {
     return new Error(new ComponentAlreadyRegistered(name));
   }
 
-  const Component = makeComponent(init, update, view, on_attribute_change);
+  const Component = makeComponent(setup, on_attribute_change);
 
   window.customElements.define(name, Component);
 
@@ -28,14 +28,20 @@ export function register({ init, update, view, on_attribute_change }, name) {
     el.replaceWith(replaced);
   }
 
-  return new Ok(undefined);
+  return new Ok(Component);
 }
 
-function makeComponent(init, update, view, on_attribute_change) {
+function makeComponent(setup, on_attribute_change) {
   return class LustreClientComponent extends HTMLElement {
     #root = document.createElement("div");
     #application = null;
     #shadow = null;
+    #lustreApp = null;
+
+    #hooks = {
+      beforeInit: [],
+      afterInit: [],
+    };
 
     slotContent = [];
 
@@ -46,6 +52,8 @@ function makeComponent(init, update, view, on_attribute_change) {
     constructor() {
       super();
       this.#shadow = this.attachShadow({ mode: "closed" });
+      this.#lustreApp = setup(this);
+      this.#hooks.beforeInit.forEach((c) => c(this));
 
       on_attribute_change[0]?.forEach((decoder, name) => {
         Object.defineProperty(this, name, {
@@ -69,6 +77,8 @@ function makeComponent(init, update, view, on_attribute_change) {
           },
         });
       });
+
+      this.#hooks.afterInit.forEach((c) => c(this));
     }
 
     connectedCallback() {
@@ -83,9 +93,9 @@ function makeComponent(init, update, view, on_attribute_change) {
       }
 
       this.#application = new LustreClientApplication(
-        init(),
-        update,
-        view,
+        this.#lustreApp.init(),
+        this.#lustreApp.update,
+        this.#lustreApp.view,
         this.#root,
         true,
       );
@@ -106,6 +116,14 @@ function makeComponent(init, update, view, on_attribute_change) {
 
     set adoptedStyleSheets(value) {
       this.#shadow.adoptedStyleSheets = value;
+    }
+
+    beforeInit(callback) {
+      this.#hooks.beforeInit.push(callback);
+    }
+
+    afterInit(callback) {
+      this.#hooks.afterInit.push(callback);
     }
   };
 }
