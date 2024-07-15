@@ -46,7 +46,7 @@ function makeComponent(setup, on_attribute_change) {
     slotContent = [];
 
     static get observedAttributes() {
-      return on_attribute_change[0]?.entries().map(([name, _]) => name) ?? [];
+      return on_attribute_change.entries().map(([name, _]) => name) ?? [];
     }
 
     constructor() {
@@ -55,7 +55,7 @@ function makeComponent(setup, on_attribute_change) {
       this.#lustreApp = setup(this);
       this.#hooks.beforeInit.forEach((c) => c(this));
 
-      on_attribute_change[0]?.forEach((decoder, name) => {
+      on_attribute_change.forEach((decoder, name) => {
         Object.defineProperty(this, name, {
           get() {
             return this[`_${name}`] || this.getAttribute(name);
